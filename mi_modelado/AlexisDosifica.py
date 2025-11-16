@@ -75,7 +75,9 @@ class EntradaDatosApp(tk.Tk):
             tk.Entry(self.densidades_frame, textvariable=self.vars[var], font=fuent).pack()
 
         # — Precios unitarios —
-        tk.Label(self.contenido, text="Precios unitarios (opcional):", fg="blue", font=fuente).pack(pady=(10, 0))
+        tk.Label(self.contenido,
+                 text="(Los precios mostrados son de ejemplo, puede ajustarlos según mercado real)",
+                 fg="red", font=("Arial", 10, "italic")).pack()
         self.precios_frame = tk.Frame(self.contenido)
         self.precios_frame.pack(pady=5)
 
@@ -109,7 +111,10 @@ class EntradaDatosApp(tk.Tk):
         # — Ajustes técnicos —
         tk.Label(self.contenido, text="— Ajustes técnicos —", fg="blue", font=fuente).pack(pady=(10, 0))
         tk.Label(self.contenido, text="Relación agua/cemento (dejar vacío si desea usar la estándar):", font=fuent).pack()
-        tk.Entry(self.contenido, textvariable=self.vars['ajuste_wc'], font=fuent).pack()
+        tk.Label(self.contenido, text="Opciones disponibles:", font=("Arial", 10, "italic")).pack()
+        tk.Label(self.contenido, text="• baja → 0.45   • media → 0.55   • alta → 0.65", font=("Arial", 10)).pack()
+        opciones_wc = ["", "baja", "media", "alta"]
+        ttk.Combobox(self.contenido, textvariable=self.vars['ajuste_wc'], values=opciones_wc, state="readonly", font=fuent).pack()
 
         tk.Label(self.contenido, text="Porcentaje de aditivo (modificar solo si se usará aditivo):",font=fuent).pack()
         tk.Entry(self.contenido, textvariable=self.vars['porc_aditivo'], font=fuent).pack()
@@ -234,7 +239,19 @@ class EntradaDatosApp(tk.Tk):
 
             ajuste = self.vars['ajuste_wc'].get().lower()
             if ajuste not in ["baja", "media", "alta", ""]:
-                messagebox.showwarning("Aviso", "Entrada no válida. Se usará la relación estándar según resistencia.")
+                try:
+                    float_wc = float(ajuste)
+                    messagebox.showwarning(
+                        "Aviso",
+                        f"El valor '{ajuste}' parece numérico, pero no se usará.\nSolo se aceptan: baja, media o alta."
+                    )
+                except ValueError:
+                    pass  # ya se maneja con el if anterior
+
+                messagebox.showwarning(
+                    "Aviso",
+                    "Entrada no válida. Se usará la relación estándar según resistencia."
+                )
 
             porc_str = self.vars['porc_aditivo'].get().strip()
             try:
@@ -268,13 +285,20 @@ class EntradaDatosApp(tk.Tk):
                 
             self.factor_rendimiento = factor
 
+            if ajuste in {"baja", "media", "alta"}:
+                etiqueta_wc = f"{ {'baja':0.45,'media':0.55,'alta':0.65}[ajuste]:.2f} (ajustada: {ajuste})"
+            else:
+                # aquí no tienes w_c aún, así que solo marca estándar
+                etiqueta_wc = "Estándar (se calculará según resistencia)"
+
+
+
             # Ficha técnica previa al cálculo con sugerencia incluida
             resumen = (
-                f"📋 Ficha técnica previa\n\n"
                 f"🔹 Resistencia: {resistencia} kg/cm²\n"
                 f"🔹 Volumen: {volumen} m³\n"
                 f"🔹 Tipo de elemento: {tipo}\n"
-                f"🔹 Relación agua/cemento: {ajuste if ajuste else 'Estándar'}\n"
+                f"🔹 Relación agua/cemento: {etiqueta_wc}\n"
                 f"🔹 Porcentaje de aditivo: {self.vars['porc_aditivo'].get()}%\n"
                 f"🔹 Factor de rendimiento: {factor:.2f}\n"
                 f"🔹 Densidades:\n"
@@ -352,7 +376,9 @@ class EntradaDatosApp(tk.Tk):
         m_s = V_s * dens_are
         m_g = V_g * dens_gra
         m_agua = m_c * w_c
+        dens_aditivo = 1.05  # kg/L, valor de ejemplo
         m_aditivo = m_c * porc_aditivo if porc_aditivo > 0 else 0
+        vol_aditivo = m_aditivo / dens_aditivo if m_aditivo > 0 else 0
         sacos = m_c / 50
 
         volumen_seco = (m_c + m_s + m_g) / 1000
@@ -368,6 +394,7 @@ class EntradaDatosApp(tk.Tk):
             "volumen_solicitado": volumen_m3,
             "volumen_dosificado": volumen_dosificado,
             "factor_rendimiento": factor_rendimiento,
+            "ajuste_wc": self.vars['ajuste_wc'].get().lower(),
             "porcentajes": {
                 "cemento": c / partes_tot * 100,
                 "arena": s / partes_tot * 100,
@@ -388,6 +415,7 @@ class EntradaDatosApp(tk.Tk):
                 "grava": m_g,
                 "agua": m_agua,
                 "aditivo": m_aditivo,
+                "aditivo_L": vol_aditivo,
                 "sacos": sacos
             },
             "volumenes": {
@@ -450,7 +478,11 @@ class EntradaDatosApp(tk.Tk):
 
         # Ficha técnica
         escribir("📋 FICHA TÉCNICA UTILIZADA", "azul", "centrado")
-        escribir(ficha_tecnica)
+        from datetime import datetime
+        hora_actual = datetime.now().strftime("%d/%m/%Y %H:%M")
+        escribir(f"Fecha y hora: {hora_actual}", "gris")
+        for linea in ficha_tecnica.split("\n"):
+            escribir(linea)
         escribir("—" * 60, "gris", "centrado")
 
         # Resultados principales
@@ -458,7 +490,10 @@ class EntradaDatosApp(tk.Tk):
         escribir(f"Elemento: {resultados['tipo']}")
         escribir(f"Resistencia: {resultados['resistencia']} kg/cm²")
         escribir(f"Proporción: {resultados['proporcion']} (Cemento:Arena:Grava)")
-        escribir(f"Relación agua/cemento: {resultados['w_c']}")
+        if resultados.get("ajuste_wc") in {"baja", "media", "alta"}:
+            escribir(f"Relación agua/cemento: {resultados['w_c']:.2f} (ajustada: {resultados['ajuste_wc']})")
+        else:
+            escribir(f"Relación agua/cemento: {resultados['w_c']:.2f} (estándar)")
         escribir(f"Volumen solicitado: {resultados['volumen_solicitado']:.2f} m³")
         escribir(f"Volumen dosificado (con rendimiento): {resultados['volumen_dosificado']:.2f} m³")
         escribir(f"Factor de rendimiento aplicado: {resultados['factor_rendimiento']}")
@@ -500,6 +535,8 @@ class EntradaDatosApp(tk.Tk):
             iva_pct = float(self.vars['iva'].get())
         except ValueError:
             iva_pct = 0
+            messagebox.showwarning("Aviso", "IVA inválido, se aplicó 0% por defecto.")
+
         iva_monto = total * (iva_pct / 100)
         total_con_iva = total + iva_monto
 
@@ -507,10 +544,12 @@ class EntradaDatosApp(tk.Tk):
             ("Cemento", f"{resultados['materiales']['cemento']:.1f} kg", f"${precio_cem:,.2f}"),
             ("Arena", f"{resultados['materiales']['arena']:.1f} kg", f"${precio_are:,.2f}"),
             ("Grava", f"{resultados['materiales']['grava']:.1f} kg", f"${precio_gra:,.2f}"),
-            ("Agua", f"{resultados['materiales']['agua']:.1f} L", f"${precio_agua:,.2f}")
+            ("Agua", f"{resultados['materiales']['agua']:.1f} kg ≈ {resultados['materiales']['agua']:.1f} L", f"${precio_agua:,.2f}")
         ]
         if resultados['materiales']['aditivo'] > 0:
-            filas.append(("Aditivo", f"{resultados['materiales']['aditivo']:.2f} kg", f"${precio_aditivo:,.2f}"))
+            filas.append(("Aditivo",
+                          f"{resultados['materiales']['aditivo']:.2f} kg ≈ {resultados['materiales']['aditivo_L']:.2f} L",
+                          f"${precio_aditivo:,.2f}"))
 
         for i, fila in enumerate(filas):
             tag = "even" if i % 2 == 0 else "odd"
@@ -522,7 +561,8 @@ class EntradaDatosApp(tk.Tk):
             ("Subtotal", "", f"${total:,.2f}"),
             (f"IVA {iva_pct:.1f}%", "", f"${iva_monto:,.2f}"),
             ("TOTAL", "", f"${total_con_iva:,.2f}"),
-            ("Costo por m³ (con IVA)", f"{resultados['volumen_solicitado']:.2f} m³", f"${(total_con_iva/resultados['volumen_solicitado']):,.2f}")
+            ("Costo por m³ (con IVA)", f"{resultados['volumen_solicitado']:.2f} m³", f"${(total_con_iva/resultados['volumen_solicitado']):,.2f}"),
+            ("Costo por m³ dosificado", f"{resultados['volumen_dosificado']:.2f} m³", f"${(total_con_iva/resultados['volumen_dosificado']):,.2f}")
         ]
 
         for j, fila in enumerate(extra_filas, start=len(filas)):
@@ -541,6 +581,7 @@ class EntradaDatosApp(tk.Tk):
 
         arena_latas = resultados['materiales']['arena'] / (densidades["arena"] * lata_volumen)
         grava_latas = resultados['materiales']['grava'] / (densidades["grava"] * lata_volumen)
+        agua_litros = resultados['materiales']['agua']  # 1 kg ≈ 1 L
         agua_latas = resultados['materiales']['agua'] / 19
 
         escribir(f"Arena: {resultados['materiales']['arena']:.1f} kg ≈ {arena_latas:.1f} latas de 19 L", "naranja")
