@@ -1,4 +1,4 @@
-# Práctica 6 – Programación
+# Práctica 5 – Programación
 
 **Autor:** Ismael Alexis Beh de la Rosa  
 **Matrícula:** AL077957  
