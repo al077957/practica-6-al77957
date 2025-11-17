@@ -1,7 +1,7 @@
 # Práctica 5 – Programación
 
 **Autor:** Ismael Alexis Beh de la Rosa  
-**Matrícula:** AL077957  
+**Matrícula:** al077957  
 **Curso:** Programación  
 **Profesor:** Juan A. Chuc Méndez  
 **Fecha:** 18/11/2025  
